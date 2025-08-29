@@ -1,0 +1,68 @@
+// ========== НАСТРОЙКИ ========== //
+const CONFIG = {
+  spreadsheetId: "ID ТАБЛИЦЫ - СМОТРЕТЬ В АДРЕСНОЙ СТРОКЕ",
+  sheetName: "ИМЯ",
+  checkDuplicates: true,
+  duplicateFields: ["name", "phone"]
+};
+
+// ========== ОСНОВНОЙ КОД ========== //
+function doPost(e) {
+  try {
+    const data = JSON.parse(e.postData.contents);
+    const spreadsheet = SpreadsheetApp.openById(CONFIG.spreadsheetId);
+    const sheet = spreadsheet.getSheetByName(CONFIG.sheetName);
+    
+    if (!sheet) throw new Error("Лист не найден");
+    
+    // Проверка дубликатов
+    if (CONFIG.checkDuplicates && isDuplicate(sheet, data)) {
+      return ContentService.createTextOutput("Дубликат: запись уже существует")
+        .setMimeType(ContentService.MimeType.TEXT);
+    }
+    
+    // Формируем строку (12 столбцов)
+    const rowData = new Array(12).fill("");
+    rowData[1] = Utilities.formatDate(new Date(), "GMT+3", "dd.MM.yyyy"); // B (столбец 2)
+    rowData[2] = data.name || "";                                       // C (столбец 3)
+    rowData[3] = data.age || "";                                        // D (столбец 4)
+    rowData[4] = data.city || "";                                       // E (столбец 5) - НОВОЕ
+    rowData[5] = data.phone ? "'" + data.phone : "";                    // F (столбец 6)
+    rowData[6] = data.resumeTitle || "";                                // G (столбец 7)
+    rowData[8] = "HH";                                                  // I (столбец 9)
+    rowData[10] = data.url || "";                                       // K (столбец 11)
+    rowData[11] = data.metro || "";                                     // L (столбец 12)
+    
+    sheet.appendRow(rowData);
+    
+    return ContentService.createTextOutput("Данные добавлены в строку " + sheet.getLastRow())
+      .setMimeType(ContentService.MimeType.TEXT);
+      
+  } catch (error) {
+    return ContentService.createTextOutput("Error: " + error.message)
+      .setMimeType(ContentService.MimeType.TEXT);
+  }
+}
+
+// Функции проверки дубликатов (без изменений)
+function isDuplicate(sheet, newData) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return false;
+  
+  const dataRange = sheet.getRange(2, 1, lastRow-1, 12).getValues();
+  
+  return dataRange.some(row => {
+    return CONFIG.duplicateFields.every(field => {
+      const colIndex = getColumnIndex(field);
+      return String(row[colIndex]).trim() === String(newData[field] || "").trim();
+    });
+  });
+}
+
+function getColumnIndex(field) {
+  const columnsMap = {
+    name: 2,   // C (индекс 2)
+    phone: 5   // F (индекс 5)
+  };
+  return columnsMap[field] || 0;
+}
